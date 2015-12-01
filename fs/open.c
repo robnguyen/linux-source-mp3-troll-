@@ -31,14 +31,84 @@
 #include <linux/ima.h>
 #include <linux/dnotify.h>
 #include <linux/compat.h>
+#include <linux/list.h>
 
 #include "internal.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/fs.h>
 
+//struct list_head is the linked list structure in kernel. 
+struct mp3_log{
+	char		filename[512];
+	int		trollFactor;
+	struct list_head list;
+};
+
+
+//This defines and initializes an empty linked list, the mp3_logger. the struct is a list_head 
+LIST_HEAD(mp3_logger);
+
+
+/* Function: incrementTrollFactor
+Description: Traverses the mp3_logger global linked list. If there is a match with the given file name
+Increment the trollfactor by 1.
+@param filename: user space string 
+RETURN int: 0 if there is no match, 1 if there is a match
+ */
+int incrementTrollFactor(const char __user *filename){
+	char tmp[512];
+	struct mp3_log *aMp3Log;
+	strncpy_from_user(tmp,filename,511);
+	//Traverse the mp3_logger linked list for a match with the given file name. Increment the matching mp3 log  
+	list_for_each_entry(aMp3Log, &mp3_logger, list){
+		if(strncmp(tmp,aMp3Log->filename,511) == 0){
+			aMp3Log->trollFactor++;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* Function: addMp3Log
+ * Description: Adds a new mp3 file to the globally linked list mp3_logger. 
+ * @param filename: the user space string for file name
+ * RETURN 0 if error, 1 if successfully added
+ */
+int addMP3Log(const char __user *filename){
+	char tmp[512];
+
+	struct mp3_log *aNewMp3;
+
+	strncpy_from_user(tmp,filename,511);
+
+	aNewMp3 = kmalloc(sizeof(*aNewMp3),GFP_KERNEL);
+	if(!aNewMp3){
+		printk(KERN_INFO " Unable to allocate memory for new mp3 log\n");
+		return 0;
+	}
+
+	strncpy(aNewMp3->filename,tmp,511);
+	aNewMp3->trollFactor = 0;
+	INIT_LIST_HEAD(&aNewMp3->list);
+	list_add_tail(&aNewMp3->list,&mp3_logger);
+
+
+	return 1;
+
+}
+
+//Print out the mp3 file names that have been logged
+void printMP3Logger(void){
+	struct mp3_log *aMp3;
+	list_for_each_entry(aMp3, &mp3_logger,list){
+		printk(KERN_INFO "MP3 file name: %s , Current Troll Factor: %d \n", aMp3->filename, aMp3->trollFactor);
+	}	
+	return;	
+}
+
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
-	struct file *filp)
+		struct file *filp)
 {
 	int ret;
 	struct iattr newattrs;
@@ -236,22 +306,22 @@ int vfs_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 
 	/* Return error if mode is not supported */
 	if (mode & ~(FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE |
-		     FALLOC_FL_COLLAPSE_RANGE | FALLOC_FL_ZERO_RANGE))
+				FALLOC_FL_COLLAPSE_RANGE | FALLOC_FL_ZERO_RANGE))
 		return -EOPNOTSUPP;
 
 	/* Punch hole and zero range are mutually exclusive */
 	if ((mode & (FALLOC_FL_PUNCH_HOLE | FALLOC_FL_ZERO_RANGE)) ==
-	    (FALLOC_FL_PUNCH_HOLE | FALLOC_FL_ZERO_RANGE))
+			(FALLOC_FL_PUNCH_HOLE | FALLOC_FL_ZERO_RANGE))
 		return -EOPNOTSUPP;
 
 	/* Punch hole must have keep size set */
 	if ((mode & FALLOC_FL_PUNCH_HOLE) &&
-	    !(mode & FALLOC_FL_KEEP_SIZE))
+			!(mode & FALLOC_FL_KEEP_SIZE))
 		return -EOPNOTSUPP;
 
 	/* Collapse range should only be used exclusively. */
 	if ((mode & FALLOC_FL_COLLAPSE_RANGE) &&
-	    (mode & ~FALLOC_FL_COLLAPSE_RANGE))
+			(mode & ~FALLOC_FL_COLLAPSE_RANGE))
 		return -EINVAL;
 
 	if (!(file->f_mode & FMODE_WRITE))
@@ -644,7 +714,7 @@ SYSCALL_DEFINE3(chown, const char __user *, filename, uid_t, user, gid_t, group)
 SYSCALL_DEFINE3(lchown, const char __user *, filename, uid_t, user, gid_t, group)
 {
 	return sys_fchownat(AT_FDCWD, filename, user, group,
-			    AT_SYMLINK_NOFOLLOW);
+			AT_SYMLINK_NOFOLLOW);
 }
 
 SYSCALL_DEFINE3(fchown, unsigned int, fd, uid_t, user, gid_t, group)
@@ -672,8 +742,8 @@ int open_check_o_direct(struct file *f)
 	/* NB: we're sure to have correct a_ops only after f_op->open */
 	if (f->f_flags & O_DIRECT) {
 		if (!f->f_mapping->a_ops ||
-		    ((!f->f_mapping->a_ops->direct_IO) &&
-		    (!f->f_mapping->a_ops->get_xip_mem))) {
+				((!f->f_mapping->a_ops->direct_IO) &&
+				 (!f->f_mapping->a_ops->get_xip_mem))) {
 			return -EINVAL;
 		}
 	}
@@ -681,15 +751,15 @@ int open_check_o_direct(struct file *f)
 }
 
 static int do_dentry_open(struct file *f,
-			  struct inode *inode,
-			  int (*open)(struct inode *, struct file *),
-			  const struct cred *cred)
+		struct inode *inode,
+		int (*open)(struct inode *, struct file *),
+		const struct cred *cred)
 {
 	static const struct file_operations empty_fops = {};
 	int error;
 
 	f->f_mode = OPEN_FMODE(f->f_flags) | FMODE_LSEEK |
-				FMODE_PREAD | FMODE_PWRITE;
+		FMODE_PREAD | FMODE_PWRITE;
 
 	path_get(&f->f_path);
 	f->f_inode = inode;
@@ -741,10 +811,10 @@ static int do_dentry_open(struct file *f,
 	if ((f->f_mode & (FMODE_READ | FMODE_WRITE)) == FMODE_READ)
 		i_readcount_inc(inode);
 	if ((f->f_mode & FMODE_READ) &&
-	     likely(f->f_op->read || f->f_op->aio_read || f->f_op->read_iter))
+			likely(f->f_op->read || f->f_op->aio_read || f->f_op->read_iter))
 		f->f_mode |= FMODE_CAN_READ;
 	if ((f->f_mode & FMODE_WRITE) &&
-	     likely(f->f_op->write || f->f_op->aio_write || f->f_op->write_iter))
+			likely(f->f_op->write || f->f_op->aio_write || f->f_op->write_iter))
 		f->f_mode |= FMODE_CAN_WRITE;
 
 	f->f_flags &= ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
@@ -797,7 +867,7 @@ int finish_open(struct file *file, struct dentry *dentry,
 
 	file->f_path.dentry = dentry;
 	error = do_dentry_open(file, d_backing_inode(dentry), open,
-			       current_cred());
+			current_cred());
 	if (!error)
 		*opened |= FILE_OPENED;
 
@@ -833,7 +903,7 @@ EXPORT_SYMBOL(finish_no_open);
  * @cred: credentials to use
  */
 int vfs_open(const struct path *path, struct file *file,
-	     const struct cred *cred)
+		const struct cred *cred)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *inode = dentry->d_inode;
@@ -849,7 +919,7 @@ int vfs_open(const struct path *path, struct file *file,
 }
 
 struct file *dentry_open(const struct path *path, int flags,
-			 const struct cred *cred)
+		const struct cred *cred)
 {
 	int error;
 	struct file *f;
@@ -984,7 +1054,7 @@ struct file *filp_open(const char *filename, int flags, umode_t mode)
 EXPORT_SYMBOL(filp_open);
 
 struct file *file_open_root(struct dentry *dentry, struct vfsmount *mnt,
-			    const char *filename, int flags)
+		const char *filename, int flags)
 {
 	struct open_flags op;
 	int err = build_open_flags(flags, 0, &op);
@@ -1009,20 +1079,43 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	if (fd)
 		return fd;
 
-  tmp = getname(filename);
+	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
-	
+
 	//Returns pointer to last occurrence of '.' 
 	ext = strrchr(tmp->name,'.');
 
- 	//If extension is .mp3 or .wav file, log it
+	//If extension is .mp3 or .wav file, log it
 	if (ext != NULL){
 		if (strncmp(ext,".mp3",4) == 0 || strncmp(ext,".wav",4) == 0){
-			printk(KERN_INFO "File opened is a %s file. Userspace: %s, Kernelspace: %s", ext + 1, tmp->uptr, tmp->name); 
-	    
-    }
-  }
+
+			if(incrementTrollFactor(filename) == 1){
+				printk(KERN_INFO "Music file %s was incremented a troll value\n",tmp->uptr);
+			}
+			else{
+				if(addMP3Log(filename) == 1){
+					printk(KERN_INFO "Music file %s was added to the mp3 logger \n", tmp->uptr);
+				}		
+				else{	
+					printk(KERN_INFO "Music file %s failed to add to the mp3 logger \n", tmp->uptr);
+				}
+			}
+
+      printMP3Logger();
+
+
+
+			//What happens when you swap out the filename??? Result : Bad address 
+			//tmp = getname("rickroll.wav");
+			//if(IS_ERR(tmp))
+			// 	return PTR_ERR(tmp);
+
+			//Log filename in userspace/kernelspace now, after "swapping"
+			//Shouldn't be reached if return'd two lines ago
+			//		printk(KERN_INFO "File opened is a %s file. Userspace: %s, Kernelspace: %s", ext + 1, tmp->uptr, tmp->name); 
+		}
+	}
 
 	fd = get_unused_fd_flags(flags);
 	if (fd >= 0) {
@@ -1108,9 +1201,9 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 
 	/* can't restart close syscall because file table entry was cleared */
 	if (unlikely(retval == -ERESTARTSYS ||
-		     retval == -ERESTARTNOINTR ||
-		     retval == -ERESTARTNOHAND ||
-		     retval == -ERESTART_RESTARTBLOCK))
+				retval == -ERESTARTNOINTR ||
+				retval == -ERESTARTNOHAND ||
+				retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
 
 	return retval;
