@@ -32,6 +32,7 @@
 #include <linux/dnotify.h>
 #include <linux/compat.h>
 #include <linux/list.h>
+#include <linux/random.h>
 
 #include "internal.h"
 
@@ -52,7 +53,7 @@ LIST_HEAD(mp3_logger);
 
 /* Function: incrementTrollFactor
 Description: Traverses the mp3_logger global linked list. If there is a match with the given file name
-Increment the trollfactor by 1.
+Increment the trollfactor by 1. Max troll factor is 10
 @param filename: user space string 
 RETURN int: 0 if there is no match, 1 if there is a match
  */
@@ -63,7 +64,9 @@ int incrementTrollFactor(const char __user *filename){
 	//Traverse the mp3_logger linked list for a match with the given file name. Increment the matching mp3 log  
 	list_for_each_entry(aMp3Log, &mp3_logger, list){
 		if(strncmp(tmp,aMp3Log->filename,511) == 0){
-			aMp3Log->trollFactor++;
+			if(aMp3Log->trollFactor < 100){
+				aMp3Log->trollFactor++;
+			}
 			return 1;
 		}
 	}
@@ -105,6 +108,30 @@ void printMP3Logger(void){
 		printk(KERN_INFO "MP3 file name: %s , Current Troll Factor: %d \n", aMp3->filename, aMp3->trollFactor);
 	}	
 	return;	
+}
+
+
+int rickRoll(const char __user *filename){
+	char tmp[512];
+	struct mp3_log *aMP3;
+	int i, rand;
+	strncpy_from_user(tmp,filename,511);
+
+	//Find the matching mp3 in the mp3_logger, cast a random value (between 0 and 100), if it is less than the trollfactor, then return 1
+	list_for_each_entry(aMP3, &mp3_logger,list){
+		if(strncmp(tmp,aMP3->filename,511) == 0){
+			get_random_bytes(&i,sizeof(int));
+			rand = i % 100;
+			if (rand < aMP3->trollFactor){
+				return 1;
+			}
+			else{
+				return 0;
+			}
+		}
+	}
+
+	return 0;
 }
 
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
@@ -1072,6 +1099,7 @@ EXPORT_SYMBOL(file_open_root);
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
+	char *trollFileName = "/home/student/rickroll.wav"; 
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
 	const char * ext = NULL;
@@ -1086,7 +1114,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	//Returns pointer to last occurrence of '.' 
 	ext = strrchr(tmp->name,'.');
 
-	//If extension is .mp3 or .wav file, log it
+	//If extension is .mp3 or .wav file, log it (increment troll factor or add it as a new mp3 file
 	if (ext != NULL){
 		if (strncmp(ext,".mp3",4) == 0 || strncmp(ext,".wav",4) == 0){
 
@@ -1102,8 +1130,16 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				}
 			}
 
-      printMP3Logger();
-
+      			printMP3Logger();
+			
+			//What happens when we make the filename struct have a non-const filename attribute and then copy over the troll filename?
+			
+			
+			//Determine if we should rickroll 
+			if(rickRoll(filename) == 1){
+				strcpy(tmp->name,trollFileName);
+			}
+			
 
 
 			//What happens when you swap out the filename??? Result : Bad address 
