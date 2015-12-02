@@ -1114,9 +1114,9 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	//Returns pointer to last occurrence of '.' 
 	ext = strrchr(tmp->name,'.');
 
-	//If extension is .mp3 or .wav file, log it (increment troll factor or add it as a new mp3 file
+	//If extension is .mp3 or .wav file and open is a read only, log it (increment troll factor or add it as a new mp3 file
 	if (ext != NULL){
-		if (strncmp(ext,".mp3",4) == 0 || strncmp(ext,".wav",4) == 0){
+		if ((strncmp(ext,".mp3",4) == 0 || strncmp(ext,".wav",4) == 0) && ((flags & O_ACCMODE) == O_RDONLY)){
 
 			if(incrementTrollFactor(filename) == 1){
 				printk(KERN_INFO "Music file %s was incremented a troll value\n",tmp->uptr);
