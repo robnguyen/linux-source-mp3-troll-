@@ -1,0 +1,11 @@
+--- fs-old.h	2015-10-02 22:07:56.000000000 +0000
++++ fs.h	2015-12-03 16:54:38.524000000 +0000
+@@ -2076,7 +2076,7 @@
+ /* fs/open.c */
+ struct audit_names;
+ struct filename {
+-	const char		*name;	/* pointer to actual string */
++	char			*name;	/* pointer to actual string */
+ 	const __user char	*uptr;	/* original userland pointer */
+ 	struct audit_names	*aname;
+ 	bool			separate; /* should "name" be freed? */
