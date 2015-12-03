@@ -110,7 +110,12 @@ void printMP3Logger(void){
 	return;	
 }
 
-
+/* Function: rickRoll
+ * Description: determines, from the global linked list mp3_logger,
+ *  whether or not we should rickroll the user opening the music file
+ * @param filename: user space file name 
+ * RETURN integer, 1 if there should be a swap, 0 if there shouldn't be
+ */
 int rickRoll(const char __user *filename){
 	char tmp[512];
 	struct mp3_log *aMP3;
