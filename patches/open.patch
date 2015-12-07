@@ -37,9 +37,12 @@
 +	//Traverse the mp3_logger linked list for a match with the given file name. Increment the matching mp3 log  
 +	list_for_each_entry(aMp3Log, &mp3_logger, list){
 +		if(strncmp(tmp,aMp3Log->filename,511) == 0){
-+			if(aMp3Log->trollFactor < 100){
++			if(aMp3Log->trollFactor < 10){
 +				aMp3Log->trollFactor++;
 +			}
++     else{
++       aMp3Log->trollFactor = 0;
++     }
 +			return 1;
 +		}
 +	}
@@ -99,7 +102,7 @@
 +	list_for_each_entry(aMP3, &mp3_logger,list){
 +		if(strncmp(tmp,aMP3->filename,511) == 0){
 +			get_random_bytes(&i,sizeof(int));
-+			rand = i % 100;
++			rand = abs(i % 10);
 +			if (rand < aMP3->trollFactor){
 +				return 1;
 +			}
